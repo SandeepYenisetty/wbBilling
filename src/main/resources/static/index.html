@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weighbridge & CCTV</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+        input, button { padding: 10px; margin: 10px; font-size: 16px; }
+        #weight, #status { font-size: 24px; font-weight: bold; color: green; }
+        video, canvas { display: block; margin: auto; }
+    </style>
+</head>
+<body>
+
+<h1>Weighbridge Reader with CCTV</h1>
+
+<!-- CCTV Live Stream -->
+<video id="cctvStream" width="640" height="360" autoplay></video>
+
+<!-- Hidden Canvas for Screenshot -->
+<canvas id="snapshotCanvas" width="640" height="360" style="display: none;"></canvas>
+
+<!-- Port Input -->
+<label for="portName">Port Name:</label>
+<input type="text" id="portName" value="COM1"><br>
+
+<!-- Get Weight and Submit Buttons -->
+<button onclick="getWeight()">Get Weight</button>
+<button onclick="captureScreenshot()">Submit</button>
+
+<h2>Weight: <span id="weight">--</span></h2>
+<h2 id="status"></h2>
+
+<script>
+    // 1️⃣ Load CCTV Stream
+    async function loadCCTV() {
+        try {
+            const video = document.getElementById("cctvStream");
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (error) {
+            document.getElementById("status").innerText = "⚠ Unable to load CCTV feed!";
+            console.error("Error:", error);
+        }
+    }
+
+    // 2️⃣ Capture Screenshot
+    function captureScreenshot() {
+    const video = document.getElementById("cctvStream");
+    const canvas = document.getElementById("snapshotCanvas");
+    const context = canvas.getContext("2d");
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert canvas to image
+    const imageData = canvas.toDataURL("image/png");
+
+    // Send image to server
+    fetch("http://localhost:8080/weighbridge/capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: imageData })
+    })
+    .then(response => response.text())
+    .then(data => {
+        document.getElementById("status").innerText = "✅ Screenshot Saved at: " + data;
+    })
+    .catch(error => {
+        document.getElementById("status").innerText = "⚠ Error Saving Screenshot!";
+        console.error("Error:", error);
+    });
+}
+
+
+    // 3️⃣ Fetch Weight Data
+    function getWeight() {
+        let portName = document.getElementById("portName").value;
+
+        fetch("http://localhost:8080/weighbridge/getWeight", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                portName: portName,
+                baudRate: 2400,
+                dataBits: 8,
+                stopBits: 1,
+                parity: 0
+            })
+        })
+        .then(response => response.text())
+        .then(data => {
+            document.getElementById("weight").innerText = data;
+        })
+        .catch(error => {
+            document.getElementById("weight").innerText = "Error!";
+            console.error("Error:", error);
+        });
+    }
+
+    // Load CCTV Stream on Page Load
+    window.onload = loadCCTV;
+</script>
+
+</body>
+</html>
